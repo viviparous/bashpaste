@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+url='http://localhost/cgi-bin/bashpaste'
+pastes=/var/www/cgi-bin/pastes
+
+urldecode()
+{
+	local d="$(cat)"
+	d="${d#*=}"
+	d="${d//+/ }"
+	echo -ne "${d//\%/\x}"
+}
+
+serve_form()
+{
+	cat - <<-!
+	Content-type: text/html
+
+	<form action="$url" method="POST">
+	<textarea name="data" cols="80" rows="24"></textarea>
+	<br>
+	<button type="submit">paste</button>
+	</form>
+	!
+}
+
+serve_paste()
+{
+	local paste="$pastes/${QUERY_STRING##*/}"
+
+	if [ -f "$paste" ]; then
+		cat - "$paste" <<-!
+		Content-type: text/plain
+
+		!
+	else
+		serve_form
+	fi
+}
+
+serve_new_paste()
+{
+	local paste="$(mktemp --tmpdir="$pastes" XXXXXX)"
+
+	urldecode > "$paste"
+
+	cat - <<-!
+	Content-type: text/plain
+
+	$url?${paste##*/}
+	!
+}
+
+case "$REQUEST_METHOD" in
+GET)	serve_paste;;
+POST)	serve_new_paste;;
+*)	serve_form;;
+esac
